@@ -29,6 +29,180 @@ document.addEventListener("DOMContentLoaded", () => {
     const authSection = document.getElementById("auth-section");
     const addRecipeSection = document.getElementById("add-recipe-section");
 
+    // Multi-select functionality
+    class MultiSelect {
+      constructor(container) {
+        this.container = container;
+        this.display = container.querySelector('.multiselect-display');
+        this.dropdown = container.querySelector('.multiselect-dropdown');
+        this.checkboxes = container.querySelectorAll('input[type="checkbox"]');
+        this.selectedValues = [];
+        
+        this.init();
+      }
+      
+      init() {
+        this.display.addEventListener('click', () => this.toggleDropdown());
+        
+        this.checkboxes.forEach(checkbox => {
+          checkbox.addEventListener('change', () => this.updateSelection());
+        });
+        
+        // Close dropdown when clicking outside
+        document.addEventListener('click', (e) => {
+          if (!this.container.contains(e.target)) {
+            this.closeDropdown();
+          }
+        });
+      }
+      
+      toggleDropdown() {
+        const isVisible = this.dropdown.style.display === 'block';
+        this.dropdown.style.display = isVisible ? 'none' : 'block';
+      }
+      
+      closeDropdown() {
+        this.dropdown.style.display = 'none';
+      }
+      
+      updateSelection() {
+        this.selectedValues = Array.from(this.checkboxes)
+          .filter(cb => cb.checked)
+          .map(cb => cb.value);
+        
+        this.updateDisplay();
+      }
+      
+      updateDisplay() {
+        if (this.selectedValues.length === 0) {
+          this.display.innerHTML = '<span style="color: #999;">Select categories...</span>';
+        } else {
+          this.display.innerHTML = this.selectedValues.map(value => 
+            `<span class="category-tag">${value} <span class="remove" data-value="${value}">×</span></span>`
+          ).join('');
+          
+          // Add remove functionality
+          this.display.querySelectorAll('.remove').forEach(remove => {
+            remove.addEventListener('click', (e) => {
+              e.stopPropagation();
+              this.removeValue(e.target.dataset.value);
+            });
+          });
+        }
+      }
+      
+      removeValue(value) {
+        const checkbox = Array.from(this.checkboxes).find(cb => cb.value === value);
+        if (checkbox) {
+          checkbox.checked = false;
+          this.updateSelection();
+        }
+      }
+      
+      setValues(values) {
+        this.checkboxes.forEach(cb => cb.checked = values.includes(cb.value));
+        this.updateSelection();
+      }
+      
+      getValues() {
+        return this.selectedValues;
+      }
+      
+      clear() {
+        this.checkboxes.forEach(cb => cb.checked = false);
+        this.updateSelection();
+      }
+    }
+
+    // Rich text editor functionality
+    class RichTextEditor {
+      constructor(toolbar, editor) {
+        this.toolbar = toolbar;
+        this.editor = editor;
+        this.init();
+      }
+      
+      init() {
+        // Add placeholder functionality
+        this.updatePlaceholder();
+        this.editor.addEventListener('focus', () => this.updatePlaceholder());
+        this.editor.addEventListener('blur', () => this.updatePlaceholder());
+        this.editor.addEventListener('input', () => this.updatePlaceholder());
+        
+        // Toolbar buttons
+        this.toolbar.querySelectorAll('button').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            const command = btn.dataset.command;
+            this.execCommand(command);
+            this.updateToolbar();
+          });
+        });
+        
+        // Update toolbar state on selection change
+        this.editor.addEventListener('mouseup', () => this.updateToolbar());
+        this.editor.addEventListener('keyup', () => this.updateToolbar());
+      }
+      
+      updatePlaceholder() {
+        const placeholder = this.editor.dataset.placeholder;
+        if (placeholder && this.editor.textContent.trim() === '') {
+          this.editor.setAttribute('data-empty', 'true');
+        } else {
+          this.editor.removeAttribute('data-empty');
+        }
+      }
+      
+      execCommand(command) {
+        document.execCommand(command, false, null);
+        this.editor.focus();
+      }
+      
+      updateToolbar() {
+        this.toolbar.querySelectorAll('button').forEach(btn => {
+          const command = btn.dataset.command;
+          const isActive = document.queryCommandState(command);
+          btn.classList.toggle('active', isActive);
+        });
+      }
+      
+      getContent() {
+        return this.editor.innerHTML;
+      }
+      
+      setContent(content) {
+        this.editor.innerHTML = content;
+        this.updatePlaceholder();
+      }
+      
+      clear() {
+        this.editor.innerHTML = '';
+        this.updatePlaceholder();
+      }
+    }
+
+    // Initialize multi-selects and rich text editors
+    const categoryMultiSelect = new MultiSelect(document.querySelector('#category-display').parentNode);
+    const filterCategoryMultiSelect = new MultiSelect(document.querySelector('#filter-category-display').parentNode);
+    const editCategoryMultiSelect = new MultiSelect(document.querySelector('#edit-category-display').parentNode);
+
+    const ingredientsEditor = new RichTextEditor(
+      document.getElementById('ingredients-toolbar'),
+      document.getElementById('ingredients')
+    );
+    const instructionsEditor = new RichTextEditor(
+      document.getElementById('instructions-toolbar'),
+      document.getElementById('instructions')
+    );
+    const editIngredientsEditor = new RichTextEditor(
+      document.getElementById('edit-ingredients-toolbar'),
+      document.getElementById('edit-ingredients')
+    );
+    const editInstructionsEditor = new RichTextEditor(
+      document.getElementById('edit-instructions-toolbar'),
+      document.getElementById('edit-instructions')
+    );
+
     // Sign up
     signupBtn.addEventListener("click", () => {
         const email = emailInput.value;
@@ -100,7 +274,7 @@ document.addEventListener("DOMContentLoaded", () => {
         
         // Clear search/filters and show shared recipes for logged-out users
         searchInput.value = "";
-        categoryFilter.value = "";
+        filterCategoryMultiSelect.clear();
         currentView = "shared-recipes"; // Default to shared recipes for logged-out users
         updateViewToggleButton();
         loadRecipes(); // Load shared recipes even when logged out
@@ -110,13 +284,19 @@ document.addEventListener("DOMContentLoaded", () => {
     const form = document.getElementById("recipe-form");
     const recipesContainer = document.getElementById("recipes");
     const searchInput = document.getElementById("search-input");
-    const categoryFilter = document.getElementById("category-filter");
     const viewToggle = document.getElementById("view-toggle");
   
     // Store recipes globally
     let recipes = [];
     let filteredRecipes = [];
     let currentView = "my-recipes"; // "my-recipes" or "shared-recipes"
+    let editingRecipeId = null;
+
+    // Modal elements
+    const editModal = document.getElementById("edit-modal");
+    const editForm = document.getElementById("edit-recipe-form");
+    const closeModal = document.querySelector(".close");
+    const cancelEdit = document.getElementById("cancel-edit");
 
     // Toggle between My Recipes and Shared Recipes
     function toggleView() {
@@ -160,7 +340,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // Search and filter functions
     function filterRecipes() {
       const searchTerm = searchInput.value.toLowerCase().trim();
-      const selectedCategory = categoryFilter.value;
+      const selectedCategories = filterCategoryMultiSelect.getValues();
 
       filteredRecipes = recipes.filter(recipe => {
         // Check if recipe matches search term (in title, ingredients, or instructions)
@@ -169,8 +349,10 @@ document.addEventListener("DOMContentLoaded", () => {
           recipe.ingredients.toLowerCase().includes(searchTerm) ||
           recipe.instructions.toLowerCase().includes(searchTerm);
 
-        // Check if recipe matches selected category
-        const matchesCategory = !selectedCategory || recipe.category === selectedCategory;
+        // Check if recipe matches selected categories
+        const recipeCategories = recipe.categories || [];
+        const matchesCategory = selectedCategories.length === 0 || 
+          selectedCategories.some(cat => recipeCategories.includes(cat));
 
         return matchesSearch && matchesCategory;
       });
@@ -180,7 +362,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Add event listeners for search and filter
     searchInput.addEventListener("input", filterRecipes);
-    categoryFilter.addEventListener("change", filterRecipes);
+    
+    // Add event listener for category filter changes
+    filterCategoryMultiSelect.checkboxes.forEach(checkbox => {
+      checkbox.addEventListener('change', filterRecipes);
+    });
   
     // Load recipes from Firestore
     async function loadRecipes() {
@@ -294,6 +480,37 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }
 
+    // Update recipe in Firestore
+    async function updateRecipe(recipeId, recipeData, imageFile = null) {
+      try {
+        const user = auth.currentUser;
+        if (!user) {
+          alert("You must be logged in to update recipes");
+          return;
+        }
+
+        const recipeRef = doc(db, "recipes", recipeId);
+        
+        // If there's a new image, upload it first
+        if (imageFile) {
+          try {
+            const imageUrl = await uploadImage(imageFile, recipeId);
+            recipeData.imageUrl = imageUrl;
+          } catch (imageError) {
+            console.error("Error uploading image:", imageError);
+            alert("Recipe updated but image upload failed: " + imageError.message);
+          }
+        }
+
+        await updateDoc(recipeRef, recipeData);
+        console.log("Recipe updated successfully");
+        loadRecipes(); // Reload and reapply filters
+      } catch (error) {
+        console.error("Error updating recipe:", error);
+        alert("Failed to update recipe: " + error.message);
+      }
+    }
+
     // Toggle recipe privacy (public/private)
     async function toggleRecipePrivacy(recipeId, currentPrivacy) {
       try {
@@ -320,6 +537,41 @@ document.addEventListener("DOMContentLoaded", () => {
         alert("Failed to delete recipe: " + error.message);
       }
     }
+
+    // Open edit modal
+    function openEditModal(recipe) {
+      editingRecipeId = recipe.id;
+      
+      // Populate form with recipe data
+      document.getElementById("edit-title").value = recipe.title;
+      editCategoryMultiSelect.setValues(recipe.categories || []);
+      editIngredientsEditor.setContent(recipe.ingredients || '');
+      editInstructionsEditor.setContent(recipe.instructions || '');
+      document.getElementById("edit-make-public").checked = recipe.isPublic || false;
+      
+      // Show modal
+      editModal.style.display = "block";
+    }
+
+    // Close edit modal
+    function closeEditModal() {
+      editModal.style.display = "none";
+      editingRecipeId = null;
+      editForm.reset();
+      editCategoryMultiSelect.clear();
+      editIngredientsEditor.clear();
+      editInstructionsEditor.clear();
+    }
+
+    // Modal event listeners
+    closeModal.addEventListener("click", closeEditModal);
+    cancelEdit.addEventListener("click", closeEditModal);
+    
+    window.addEventListener("click", (e) => {
+      if (e.target === editModal) {
+        closeEditModal();
+      }
+    });
   
     function renderRecipes() {
       recipesContainer.innerHTML = "";
@@ -327,7 +579,7 @@ document.addEventListener("DOMContentLoaded", () => {
       // Use filtered recipes for rendering
       const recipesToRender = filteredRecipes;
       const searchTerm = searchInput.value.toLowerCase().trim();
-      const selectedCategory = categoryFilter.value;
+      const selectedCategories = filterCategoryMultiSelect.getValues();
       const user = auth.currentUser;
   
       if (recipesToRender.length === 0) {
@@ -344,12 +596,12 @@ document.addEventListener("DOMContentLoaded", () => {
         } else {
           // Show message when no recipes match the current filters
           let message = "No recipes found";
-          if (searchTerm && selectedCategory) {
-            message += ` matching "${searchTerm}" in category "${selectedCategory}".`;
+          if (searchTerm && selectedCategories.length > 0) {
+            message += ` matching "${searchTerm}" in categories "${selectedCategories.join(', ')}".`;
           } else if (searchTerm) {
             message += ` matching "${searchTerm}".`;
-          } else if (selectedCategory) {
-            message += ` in category "${selectedCategory}".`;
+          } else if (selectedCategories.length > 0) {
+            message += ` in categories "${selectedCategories.join(', ')}".`;
           }
           recipesContainer.innerHTML = `<p>${message}</p>`;
         }
@@ -394,8 +646,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
         // Highlight search terms in the content
         let title = recipe.title;
-        let ingredients = recipe.ingredients.replace(/\n/g, "<br>");
-        let instructions = recipe.instructions.replace(/\n/g, "<br>");
+        let ingredients = recipe.ingredients || '';
+        let instructions = recipe.instructions || '';
 
         if (searchTerm) {
           const highlightRegex = new RegExp(`(${searchTerm})`, 'gi');
@@ -417,6 +669,12 @@ document.addEventListener("DOMContentLoaded", () => {
           privacyButton = `<button class="privacy-btn ${recipe.isPublic ? 'public' : 'private'}" data-id="${recipe.id}" data-public="${recipe.isPublic}">${privacyAction}</button>`;
         }
 
+        // Edit button - ONLY for logged-in users viewing their own recipes
+        let editButton = "";
+        if (currentView === "my-recipes" && isOwner && user) {
+          editButton = `<button class="edit-btn" data-id="${recipe.id}">Edit</button>`;
+        }
+
         // Delete button - ONLY for logged-in users viewing their own recipes
         let deleteButton = "";
         if (currentView === "my-recipes" && isOwner && user) {
@@ -429,22 +687,32 @@ document.addEventListener("DOMContentLoaded", () => {
           privacyStatus = `<p class="privacy-status"><strong>Status:</strong> ${recipe.isPublic ? "Public 🌍" : "Private 🔒"}</p>`;
         }
 
-        // Recipe image - show if available
+        // Recipe image - show if available (FULL SIZE)
         let recipeImage = "";
         if (recipe.imageUrl) {
-          recipeImage = `<img src="${recipe.imageUrl}" alt="${recipe.title}" class="recipe-image" />`;
+          recipeImage = `<img src="${recipe.imageUrl}" alt="${recipe.title}" class="recipe-image" onclick="window.open('${recipe.imageUrl}', '_blank')" />`;
         }
+
+        // Categories display
+        const categoriesDisplay = recipe.categories && recipe.categories.length > 0 
+          ? recipe.categories.map(cat => `<span class="category-tag">${cat}</span>`).join(' ')
+          : 'N/A';
   
         card.innerHTML = `
           <h3>${title}</h3>
           ${authorInfo}
           <p class="recipe-created-date"><strong>Created:</strong> ${dateString}</p>
           ${privacyStatus}
-          <p><strong>Category:</strong> ${recipe.category || 'N/A'}</p>
-          <p><strong>Ingredients:</strong><br>${ingredients}</p>
-          <p><strong>Instructions:</strong><br>${instructions}</p>
+          <p><strong>Categories:</strong> ${categoriesDisplay}</p>
+          <div class="recipe-content">
+            <p><strong>Ingredients:</strong></p>
+            <div>${ingredients}</div>
+            <p><strong>Instructions:</strong></p>
+            <div>${instructions}</div>
+          </div>
           ${recipeImage}
           <div class="recipe-actions">
+            ${editButton}
             ${privacyButton}
             ${deleteButton}
           </div>
@@ -471,16 +739,27 @@ document.addEventListener("DOMContentLoaded", () => {
             toggleRecipePrivacy(recipeId, isCurrentlyPublic);
           });
         });
+
+        document.querySelectorAll(".edit-btn").forEach(btn => {
+          btn.addEventListener("click", e => {
+            const recipeId = e.target.dataset.id;
+            const recipe = recipes.find(r => r.id === recipeId);
+            if (recipe) {
+              openEditModal(recipe);
+            }
+          });
+        });
       }
     }
   
+    // Add recipe form submission
     form.addEventListener("submit", e => {
       e.preventDefault();
   
       const title = document.getElementById("title").value.trim();
-      const ingredients = document.getElementById("ingredients").value.trim();
-      const instructions = document.getElementById("instructions").value.trim();
-      const category = document.getElementById("category").value.trim();
+      const ingredients = ingredientsEditor.getContent();
+      const instructions = instructionsEditor.getContent();
+      const categories = categoryMultiSelect.getValues();
       const isPublic = document.getElementById("make-public").checked;
       const imageFile = document.getElementById("recipe-image").files[0];
   
@@ -489,12 +768,42 @@ document.addEventListener("DOMContentLoaded", () => {
           title,
           ingredients,
           instructions,
-          category,
+          categories,
           isPublic
         };
         
         saveRecipe(recipeData, imageFile);
+        
+        // Reset form
         form.reset();
+        categoryMultiSelect.clear();
+        ingredientsEditor.clear();
+        instructionsEditor.clear();
+      }
+    });
+
+    // Edit recipe form submission
+    editForm.addEventListener("submit", e => {
+      e.preventDefault();
+  
+      const title = document.getElementById("edit-title").value.trim();
+      const ingredients = editIngredientsEditor.getContent();
+      const instructions = editInstructionsEditor.getContent();
+      const categories = editCategoryMultiSelect.getValues();
+      const isPublic = document.getElementById("edit-make-public").checked;
+      const imageFile = document.getElementById("edit-recipe-image").files[0];
+  
+      if (title && ingredients && instructions && editingRecipeId) {
+        const recipeData = {
+          title,
+          ingredients,
+          instructions,
+          categories,
+          isPublic
+        };
+        
+        updateRecipe(editingRecipeId, recipeData, imageFile);
+        closeEditModal();
       }
     });
   
