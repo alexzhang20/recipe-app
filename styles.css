@@ -286,6 +286,21 @@ header {
     background-color: #0056b3;
   }
   
+  /* Cancel Edit Button - Different color from other buttons */
+  #cancel-edit {
+    background-color: #d43c1a;
+    color: white;
+    border: none;
+    padding: 0.75rem;
+    border-radius: 6px;
+    cursor: pointer;
+    margin-top: 0.5rem;
+  }
+  
+  #cancel-edit:hover {
+    background-color: #bb2e07;
+  }
+  
   /* Image Upload Styles */
   .image-upload-section {
     display: flex;
@@ -327,14 +342,25 @@ header {
     background-color: #fff8f0;
   }
   
-  /* Recipe Image Display - FULL SIZE */
+  /* Recipe Image Display - SCALED DOWN with proper aspect ratio */
   .recipe-image {
     max-width: 100%;
+    max-height: 300px;
+    width: auto;
     height: auto;
-    border-radius: 8px;
+    object-fit: cover;
     margin: 1rem 0;
     box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     cursor: pointer;
+    border-radius: 8px;
+    display: block;
+  }
+  
+  /* Image container for better control */
+  .recipe-image-container {
+    display: flex;
+    justify-content: center;
+    margin: 1rem 0;
   }
   
   /* Multi-select Category Styles */
@@ -403,8 +429,10 @@ header {
   .rich-text-toolbar {
     display: flex;
     gap: 5px;
-    margin-bottom: 5px;
+    margin-bottom: -10px;
+    margin-top: -10px;
     flex-wrap: wrap;
+
   }
   
   .rich-text-toolbar button {

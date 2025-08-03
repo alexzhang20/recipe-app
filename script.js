@@ -31,12 +31,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Multi-select functionality
     class MultiSelect {
-      constructor(container) {
+      constructor(container, onSelectionChange = null) {
         this.container = container;
         this.display = container.querySelector('.multiselect-display');
         this.dropdown = container.querySelector('.multiselect-dropdown');
         this.checkboxes = container.querySelectorAll('input[type="checkbox"]');
         this.selectedValues = [];
+        this.onSelectionChange = onSelectionChange;
         
         this.init();
       }
@@ -71,6 +72,11 @@ document.addEventListener("DOMContentLoaded", () => {
           .map(cb => cb.value);
         
         this.updateDisplay();
+        
+        // Call the callback function if provided
+        if (this.onSelectionChange) {
+          this.onSelectionChange();
+        }
       }
       
       updateDisplay() {
@@ -181,9 +187,38 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }
 
+    // Store recipes globally
+    let recipes = [];
+    let filteredRecipes = [];
+    let currentView = "my-recipes"; // "my-recipes" or "shared-recipes"
+    let editingRecipeId = null;
+
+    // Search and filter functions
+    function filterRecipes() {
+      const searchTerm = searchInput.value.toLowerCase().trim();
+      const selectedCategories = filterCategoryMultiSelect.getValues();
+
+      filteredRecipes = recipes.filter(recipe => {
+        // Check if recipe matches search term (in title, ingredients, or instructions)
+        const matchesSearch = !searchTerm || 
+          recipe.title.toLowerCase().includes(searchTerm) ||
+          recipe.ingredients.toLowerCase().includes(searchTerm) ||
+          recipe.instructions.toLowerCase().includes(searchTerm);
+
+        // Check if recipe matches selected categories
+        const recipeCategories = recipe.categories || [];
+        const matchesCategory = selectedCategories.length === 0 || 
+          selectedCategories.some(cat => recipeCategories.includes(cat));
+
+        return matchesSearch && matchesCategory;
+      });
+
+      renderRecipes();
+    }
+
     // Initialize multi-selects and rich text editors
     const categoryMultiSelect = new MultiSelect(document.querySelector('#category-display').parentNode);
-    const filterCategoryMultiSelect = new MultiSelect(document.querySelector('#filter-category-display').parentNode);
+    const filterCategoryMultiSelect = new MultiSelect(document.querySelector('#filter-category-display').parentNode, filterRecipes);
     const editCategoryMultiSelect = new MultiSelect(document.querySelector('#edit-category-display').parentNode);
 
     const ingredientsEditor = new RichTextEditor(
@@ -285,12 +320,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const recipesContainer = document.getElementById("recipes");
     const searchInput = document.getElementById("search-input");
     const viewToggle = document.getElementById("view-toggle");
-  
-    // Store recipes globally
-    let recipes = [];
-    let filteredRecipes = [];
-    let currentView = "my-recipes"; // "my-recipes" or "shared-recipes"
-    let editingRecipeId = null;
 
     // Modal elements
     const editModal = document.getElementById("edit-modal");
@@ -337,36 +366,8 @@ document.addEventListener("DOMContentLoaded", () => {
     // Add event listener for view toggle
     viewToggle.addEventListener("click", toggleView);
 
-    // Search and filter functions
-    function filterRecipes() {
-      const searchTerm = searchInput.value.toLowerCase().trim();
-      const selectedCategories = filterCategoryMultiSelect.getValues();
-
-      filteredRecipes = recipes.filter(recipe => {
-        // Check if recipe matches search term (in title, ingredients, or instructions)
-        const matchesSearch = !searchTerm || 
-          recipe.title.toLowerCase().includes(searchTerm) ||
-          recipe.ingredients.toLowerCase().includes(searchTerm) ||
-          recipe.instructions.toLowerCase().includes(searchTerm);
-
-        // Check if recipe matches selected categories
-        const recipeCategories = recipe.categories || [];
-        const matchesCategory = selectedCategories.length === 0 || 
-          selectedCategories.some(cat => recipeCategories.includes(cat));
-
-        return matchesSearch && matchesCategory;
-      });
-
-      renderRecipes();
-    }
-
     // Add event listeners for search and filter
     searchInput.addEventListener("input", filterRecipes);
-    
-    // Add event listener for category filter changes
-    filterCategoryMultiSelect.checkboxes.forEach(checkbox => {
-      checkbox.addEventListener('change', filterRecipes);
-    });
   
     // Load recipes from Firestore
     async function loadRecipes() {
