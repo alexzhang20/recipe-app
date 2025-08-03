@@ -36,13 +36,13 @@
               <option value="Dinner">Dinner</option>
               <option value="Vegetarian">Vegetarian</option>
             </select>
-            <div class="image-upload-section">
-              <label for="recipe-image">Recipe Image (optional):</label>
-              <input type="file" id="recipe-image" accept="image/*" />
-              <small class="image-help-text">Supported formats: JPG, PNG, GIF (Max 5MB)</small>
-            </div>
             <textarea id="ingredients" placeholder="Ingredients" required></textarea>
             <textarea id="instructions" placeholder="Instructions" required></textarea>
+            <div class="image-upload-section">
+                <label for="recipe-image">Upload Image (optional):</label>
+                <input type="file" id="recipe-image" accept="image/*" />
+                <small class="image-help-text">Supported formats: JPG, PNG, GIF (Max 5MB)</small>
+              </div>
             <label class="checkbox-label">
               <input type="checkbox" id="make-public" />
               <span>Share this recipe publicly (others can view it)</span>
