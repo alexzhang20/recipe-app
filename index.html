@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Recipe Sharing App</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header>
+    <h1>🍽 Recipe Sharing App</h1>
+    <button id="view-toggle" class="view-toggle-btn" style="display: none;">View Shared Recipes</button>
+    <div id="auth-section">
+        <input type="email" id="email" placeholder="Email" />
+        <input type="password" id="password" placeholder="Password" />
+        <div class="auth-buttons">
+            <button id="login-btn">Log In</button>
+            <button id="signup-btn">Sign Up</button>
+            <button id="google-signin-btn">Sign in with Google</button>
+            <button id="logout-btn" style="display: none;">Log Out</button>
+        </div>
+  </header>
+
+  <main>
+    <!-- Two-column layout container -->
+    <div class="main-content">
+      <!-- Left Column: Add Recipe Form -->
+      <div class="left-column">
+        <section class="add-recipe" id="add-recipe-section" style="display: none;">
+          <h2>Add a New Recipe</h2>
+          <form id="recipe-form">
+            <input type="text" id="title" placeholder="Recipe Title" required />
+            <select id="category" required>
+              <option value="">Select Category</option>
+              <option value="Breakfast">Breakfast</option>
+              <option value="Lunch">Lunch</option>
+              <option value="Dinner">Dinner</option>
+              <option value="Vegetarian">Vegetarian</option>
+            </select>
+            <div class="image-upload-section">
+              <label for="recipe-image">Recipe Image (optional):</label>
+              <input type="file" id="recipe-image" accept="image/*" />
+              <small class="image-help-text">Supported formats: JPG, PNG, GIF (Max 5MB)</small>
+            </div>
+            <textarea id="ingredients" placeholder="Ingredients" required></textarea>
+            <textarea id="instructions" placeholder="Instructions" required></textarea>
+            <label class="checkbox-label">
+              <input type="checkbox" id="make-public" />
+              <span>Share this recipe publicly (others can view it)</span>
+            </label>
+            <button type="submit">Add Recipe</button>
+          </form>
+        </section>
+      </div>
+
+      <!-- Right Column: Search and Recipe List -->
+      <div class="right-column">
+        <section class="filter-section">
+          <input type="text" id="search-input" placeholder="Search recipes..." />
+          <select id="category-filter">
+            <option value="">All Categories</option>
+            <option value="Breakfast">Breakfast</option>
+            <option value="Lunch">Lunch</option>
+            <option value="Dinner">Dinner</option>
+            <option value="Vegetarian">Vegetarian</option>
+            <option value="Vegan">Vegan</option>
+          </select>
+        </section>      
+
+        <section class="recipe-list">
+          <h2>All Recipes</h2>
+          <div id="recipes"></div>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <p>&copy; 2025 Recipe Sharing App</p>
+  </footer>
+
+  <script type="module" src="script.js"></script>
+
+</body>
+</html>
