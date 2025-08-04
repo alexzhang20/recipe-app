@@ -520,6 +520,7 @@ document.addEventListener("DOMContentLoaded", () => {
         myRecipesBtn.style.display = "none";
         bookmarkedRecipesBtn.style.display = "none";
         logoutBtn.style.display = "none";
+        sharedRecipesBtn.style.display = "none";
         loginBtn.style.display = "inline-block";
         signupBtn.style.display = "inline-block";
         googleSignInBtn.style.display = "inline-block";
