@@ -502,6 +502,7 @@ document.addEventListener("DOMContentLoaded", () => {
         // User is logged in
         addRecipeSection.style.display = "block";
         myRecipesBtn.style.display = "inline-block";
+        sharedRecipesBtn.style.display = "inline-block";
         bookmarkedRecipesBtn.style.display = "inline-block";
         logoutBtn.style.display = "inline-block";
         loginBtn.style.display = "none";
