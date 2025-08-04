@@ -29,6 +29,12 @@ document.addEventListener("DOMContentLoaded", () => {
     const authSection = document.getElementById("auth-section");
     const addRecipeSection = document.getElementById("add-recipe-section");
 
+    // Navigation buttons
+    const myRecipesBtn = document.getElementById("my-recipes-btn");
+    const sharedRecipesBtn = document.getElementById("shared-recipes-btn");
+    const bookmarkedRecipesBtn = document.getElementById("bookmarked-recipes-btn");
+    const recipesHeading = document.getElementById("recipes-heading");
+
     // Multi-select functionality
     class MultiSelect {
       constructor(container, onSelectionChange = null) {
@@ -190,10 +196,53 @@ document.addEventListener("DOMContentLoaded", () => {
     // Store recipes globally
     let recipes = [];
     let filteredRecipes = [];
-    let currentView = "my-recipes"; // "my-recipes", "shared-recipes", "bookmarked-recipes"
+    let currentView = "shared-recipes"; // "my-recipes", "shared-recipes", "bookmarked-recipes"
     let currentSort = "newest"; // "newest", "oldest", "upvotes"
     let editingRecipeId = null;
     let userBookmarks = []; // Store user's bookmarked recipe IDs
+
+    // Update page heading and navigation button states
+    function updatePageHeading() {
+      // Update heading
+      switch (currentView) {
+        case "my-recipes":
+          recipesHeading.textContent = "My Recipes";
+          break;
+        case "shared-recipes":
+          recipesHeading.textContent = "Community Recipes";
+          break;
+        case "bookmarked-recipes":
+          recipesHeading.textContent = "Bookmarked Recipes";
+          break;
+        default:
+          recipesHeading.textContent = "All Recipes";
+          break;
+      }
+
+      // Update button states
+      myRecipesBtn.classList.remove('active');
+      sharedRecipesBtn.classList.remove('active');
+      bookmarkedRecipesBtn.classList.remove('active');
+
+      switch (currentView) {
+        case "my-recipes":
+          myRecipesBtn.classList.add('active');
+          break;
+        case "shared-recipes":
+          sharedRecipesBtn.classList.add('active');
+          break;
+        case "bookmarked-recipes":
+          bookmarkedRecipesBtn.classList.add('active');
+          break;
+      }
+    }
+
+    // Switch to a specific view
+    function switchToView(view) {
+      currentView = view;
+      updatePageHeading();
+      loadRecipes();
+    }
 
     // Search and filter functions
     function filterRecipes() {
@@ -394,6 +443,18 @@ document.addEventListener("DOMContentLoaded", () => {
       document.getElementById('edit-instructions')
     );
 
+    // Navigation button event listeners
+    myRecipesBtn.addEventListener("click", () => switchToView("my-recipes"));
+    sharedRecipesBtn.addEventListener("click", () => switchToView("shared-recipes"));
+    bookmarkedRecipesBtn.addEventListener("click", () => {
+      const user = auth.currentUser;
+      if (!user) {
+        alert("Please log in to view bookmarked recipes.");
+        return;
+      }
+      switchToView("bookmarked-recipes");
+    });
+
     // Sign up
     signupBtn.addEventListener("click", () => {
         const email = emailInput.value;
@@ -440,8 +501,8 @@ document.addEventListener("DOMContentLoaded", () => {
     if (user) {
         // User is logged in
         addRecipeSection.style.display = "block";
-        viewToggle.style.display = "inline-block";
-        bookmarksToggle.style.display = "inline-block";
+        myRecipesBtn.style.display = "inline-block";
+        bookmarkedRecipesBtn.style.display = "inline-block";
         logoutBtn.style.display = "inline-block";
         loginBtn.style.display = "none";
         signupBtn.style.display = "none";
@@ -451,13 +512,13 @@ document.addEventListener("DOMContentLoaded", () => {
         
         // Reset to my recipes view and load user's recipes when they log in
         currentView = "my-recipes";
-        updateViewButtons();
+        updatePageHeading();
         loadUserBookmarks().then(() => loadRecipes());
     } else {
         // User is logged out - show shared recipes by default
         addRecipeSection.style.display = "none";
-        viewToggle.style.display = "none"; // FIXED: Hide "View My Recipes" button for logged-out users
-        bookmarksToggle.style.display = "none"; // Hide bookmarks button for logged-out users
+        myRecipesBtn.style.display = "none";
+        bookmarkedRecipesBtn.style.display = "none";
         logoutBtn.style.display = "none";
         loginBtn.style.display = "inline-block";
         signupBtn.style.display = "inline-block";
@@ -470,7 +531,7 @@ document.addEventListener("DOMContentLoaded", () => {
         filterCategoryMultiSelect.clear();
         currentView = "shared-recipes"; // Default to shared recipes for logged-out users
         userBookmarks = []; // Clear bookmarks
-        updateViewButtons();
+        updatePageHeading();
         loadRecipes(); // Load shared recipes even when logged out
     }
     });
@@ -478,8 +539,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const form = document.getElementById("recipe-form");
     const recipesContainer = document.getElementById("recipes");
     const searchInput = document.getElementById("search-input");
-    const viewToggle = document.getElementById("view-toggle");
-    const bookmarksToggle = document.getElementById("bookmarks-toggle");
     const sortSelect = document.getElementById("sort-select");
 
     // Sort functionality
@@ -495,66 +554,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const editForm = document.getElementById("edit-recipe-form");
     const closeModal = document.querySelector(".close");
     const cancelEdit = document.getElementById("cancel-edit");
-
-    // Toggle between My Recipes and Shared Recipes
-    function toggleView() {
-      if (currentView === "my-recipes") {
-        currentView = "shared-recipes";
-      } else {
-        currentView = "my-recipes";
-      }
-      
-      updateViewButtons();
-      loadRecipes();
-    }
-
-    // Toggle to Bookmarked Recipes
-    function toggleBookmarks() {
-      const user = auth.currentUser;
-      if (!user) {
-        alert("Please log in to view bookmarked recipes.");
-        return;
-      }
-      
-      if (currentView === "bookmarked-recipes") {
-        currentView = "my-recipes";
-      } else {
-        currentView = "bookmarked-recipes";
-      }
-      
-      updateViewButtons();
-      loadRecipes();
-    }
-
-    function updateViewButtons() {
-      const user = auth.currentUser;
-      
-      // Update main view toggle button
-      if (currentView === "my-recipes") {
-        viewToggle.textContent = "View Community Recipes";
-        viewToggle.className = "view-toggle-btn";
-      } else if (currentView === "shared-recipes") {
-        viewToggle.textContent = "View My Recipes";
-        viewToggle.className = "view-toggle-btn shared-view";
-      }
-      
-      // Update bookmarks button
-      if (user) {
-        if (currentView === "bookmarked-recipes") {
-          bookmarksToggle.textContent = "Exit Bookmarks";
-          bookmarksToggle.className = "bookmarks-toggle-btn active";
-          viewToggle.style.display = "none";
-        } else {
-          bookmarksToggle.textContent = "View Bookmarked Recipes";
-          bookmarksToggle.className = "bookmarks-toggle-btn";
-          viewToggle.style.display = "inline";
-        }
-      }
-    }
-
-    // Add event listener for view toggle
-    viewToggle.addEventListener("click", toggleView);
-    bookmarksToggle.addEventListener("click", toggleBookmarks);
 
     // Add event listeners for search and filter
     searchInput.addEventListener("input", filterRecipes);
@@ -840,15 +839,6 @@ async function loadRecipes() {
       // Add results count and view info
       const headerInfo = document.createElement("div");
       headerInfo.className = "recipes-header-info";
-      
-      if (currentView === "shared-recipes") {
-        const communityText = user ? 
-          "👥 Viewing shared recipes from the community" : 
-          "👥 Viewing shared recipes from the community (Log in to create your own!)";
-        headerInfo.innerHTML = `<p class="view-info"><em>${communityText}</em></p>`;
-      } else if (currentView === "bookmarked-recipes") {
-        headerInfo.innerHTML = `<p class="view-info"><em>📖 Viewing your bookmarked recipes</em></p>`;
-      }
       
       if (recipesToRender.length !== recipes.length) {
         const countInfo = document.createElement("p");

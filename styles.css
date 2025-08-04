@@ -4,13 +4,65 @@ header {
     justify-content: space-between;
     align-items: center;
     padding: 20px;
-    background-color: #ff914d;
+    background-color: #ffa652;
     color: white;
   }
+
+  .nav-btn {
+    padding: 12px 24px;
+    border: 1px solid #f97316;
+    background-color: white;
+    color: #682802;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    text-decoration: none;
+    display: inline-block;
+    min-width: 120px;
+    text-align: center;
+  }
   
-  .view-buttons {
+  .nav-btn:hover {
+    background-color: #f45d05;
+    color: white;
+    border-color: #f45d05;
+  }
+  
+  .nav-btn.active {
+    background-color: #f45d05;
+    color: white;
+    border-color: #f45d05;
+  }
+  
+  .nav-btn:focus {
+    outline: 3px solid #f97316;
+    outline-offset: 2px;
+  }
+  
+  @media (max-width: 768px) {
+    .nav-btn {
+      padding: 10px 20px;
+      font-size: 13px;
+      min-width: 100px;
+    }
+  }
+  
+  @media (max-width: 480px) {
+    .nav-btn {
+      width: 100%;
+      max-width: 200px;
+      margin: 0 auto 8px;
+    }
+  }
+  
+.view-buttons {
     display: flex;
-    gap: 8px;
+    gap: 10px;
+    margin: 15px 0;
+    flex-wrap: wrap;
+    justify-content: center;
   }
   
   #auth-section {
