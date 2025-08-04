@@ -8,6 +8,11 @@ header {
     color: white;
   }
   
+  .view-buttons {
+    display: flex;
+    gap: 8px;
+  }
+  
   #auth-section {
     display: flex;
     gap: 8px;
@@ -105,6 +110,27 @@ header {
     min-width: 200px;
   }
   
+  /* Sort Container */
+  .sort-container {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  
+  .sort-select {
+    padding: 0.5rem;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    background-color: white;
+    cursor: pointer;
+    font-size: 14px;
+  }
+  
+  .sort-select:focus {
+    outline: none;
+    border-color: #ff914d;
+  }
+  
   /* Form Styles */
   form {
     display: flex;
@@ -139,10 +165,34 @@ header {
     padding: 1rem;
     border-radius: 8px;
     box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+    position: relative;
   }
   
   .recipe-card h3 {
     margin-top: 0;
+    margin-right: 80px; /* Make room for upvote count */
+  }
+
+  .delete-btn-wrapper {
+    position: absolute;
+    bottom: 1rem;
+    right: 1rem;
+  }
+  
+  /* Upvote count in top right corner */
+  .recipe-upvote-corner {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    background-color: #fd7e14;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    gap: 4px;
   }
   
   .recipe-created-date {
@@ -173,7 +223,6 @@ header {
     border-radius: 4px;
     cursor: pointer;
     font-size: 14px;
-    margin-left: 16px;
   }
   
   .view-toggle-btn:hover {
@@ -186,6 +235,18 @@ header {
   
   .view-toggle-btn.shared-view:hover {
     background-color: #138496;
+  }
+  
+  .bookmarks-toggle-btn {
+    background-color: hsl(316, 60%, 59%);
+  }
+  
+  .bookmarks-toggle-btn:hover {
+    background-color:  hsl(316, 45%, 52%);
+  }
+  
+  .bookmarks-toggle-btn.active {
+    background-color:  hsl(316, 60%, 59%);
   }
   
   /* Checkbox Label */
@@ -215,6 +276,12 @@ header {
     color: #666;
   }
   
+  .upvote-count {
+    font-size: 14px;
+    color: #666;
+    margin-top: -0.5rem;
+  }
+  
   .recipes-header-info {
     margin-bottom: 16px;
   }
@@ -233,6 +300,7 @@ header {
     display: flex;
     gap: 8px;
     margin-top: 12px;
+    flex-wrap: wrap;
   }
   
   .privacy-btn {
@@ -247,11 +315,11 @@ header {
   }
   
   .privacy-btn.public {
-    background-color: #72889b;
+    background-color: #859bae;
   }
   
   .privacy-btn.private {
-    background-color: #28a745;
+    background-color: #53b7a3;
   }
   
   .privacy-btn:hover {
@@ -284,6 +352,59 @@ header {
   
   .edit-btn:hover {
     background-color: #0056b3;
+  }
+  
+  /* Bookmark Button */
+  .bookmark-btn {
+    background-color:  hsl(316, 53%, 62%);
+    color: white;
+    border: none;
+    padding: 0.5rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    margin-top: 0.5rem;
+    transition: background-color 0.3s ease;
+  }
+  
+  .bookmark-btn:hover {
+    background-color: hsl(316, 45%, 52%);
+  }
+  
+  .bookmark-btn.bookmarked {
+    background-color: #a728a7;
+  }
+  
+  .bookmark-btn.bookmarked:hover {
+    background-color: hsl(316, 45%, 52%);
+  }
+  
+  /* Upvote Button */
+  .upvote-btn {
+    background-color: #f8ca91;
+    color: white;
+    border: none;
+    padding: 0.5rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    margin-top: 0.5rem;
+    transition: background-color 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  
+  .upvote-btn:hover {
+    background-color: #fa903a;
+  }
+  
+  .upvote-btn.upvoted {
+    background-color: #ee8105;
+  }
+  
+  .upvote-btn.upvoted:hover {
+    background-color: #fa903a;
   }
   
   /* Cancel Edit Button - Different color from other buttons */
@@ -530,4 +651,27 @@ header {
   
   .recipe-content li {
     margin: 5px 0;
+  }
+  
+  /* Responsive adjustments for new buttons */
+  @media (max-width: 768px) {
+    .filter-section {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 0.5rem;
+    }
+    
+    .sort-container {
+      justify-content: space-between;
+    }
+    
+    .recipe-actions {
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    
+    .recipe-actions button {
+      width: 100%;
+      margin-top: 0;
+    }
   }

@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-app.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-auth.js";
-import { getFirestore, collection, addDoc, getDocs, query, where, doc, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-firestore.js";
+import { getFirestore, collection, addDoc, getDocs, query, where, doc, deleteDoc, updateDoc, arrayUnion, arrayRemove, increment } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-firestore.js";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-storage.js";
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -190,8 +190,10 @@ document.addEventListener("DOMContentLoaded", () => {
     // Store recipes globally
     let recipes = [];
     let filteredRecipes = [];
-    let currentView = "my-recipes"; // "my-recipes" or "shared-recipes"
+    let currentView = "my-recipes"; // "my-recipes", "shared-recipes", "bookmarked-recipes"
+    let currentSort = "newest"; // "newest", "oldest", "upvotes"
     let editingRecipeId = null;
+    let userBookmarks = []; // Store user's bookmarked recipe IDs
 
     // Search and filter functions
     function filterRecipes() {
@@ -213,7 +215,161 @@ document.addEventListener("DOMContentLoaded", () => {
         return matchesSearch && matchesCategory;
       });
 
+      // Apply sorting
+      sortRecipes();
       renderRecipes();
+    }
+
+    // Sort recipes based on current sort option
+    function sortRecipes() {
+      filteredRecipes.sort((a, b) => {
+        switch (currentSort) {
+          case "upvotes":
+            const aUpvotes = (a.upvotes || 0);
+            const bUpvotes = (b.upvotes || 0);
+            return bUpvotes - aUpvotes; // Descending order (most upvotes first)
+          
+          case "oldest":
+            const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt || 0);
+            const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt || 0);
+            return dateA - dateB; // Ascending order (oldest first)
+          
+          case "newest":
+          default:
+            const newestDateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt || 0);
+            const newestDateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt || 0);
+            return newestDateB - newestDateA; // Descending order (newest first)
+        }
+      });
+    }
+
+    // Load user's bookmarks
+    async function loadUserBookmarks() {
+      const user = auth.currentUser;
+      if (!user) {
+        userBookmarks = [];
+        return;
+      }
+
+      try {
+        const userDocQuery = query(collection(db, "userProfiles"), where("userId", "==", user.uid));
+        const userSnapshot = await getDocs(userDocQuery);
+        
+        if (!userSnapshot.empty) {
+          const userDoc = userSnapshot.docs[0];
+          userBookmarks = userDoc.data().bookmarks || [];
+        } else {
+          userBookmarks = [];
+        }
+      } catch (error) {
+        console.error("Error loading bookmarks:", error);
+        userBookmarks = [];
+      }
+    }
+
+    // Create or get user profile document ID
+    async function getUserProfileId(userId) {
+      try {
+        const userDocQuery = query(collection(db, "userProfiles"), where("userId", "==", userId));
+        const userSnapshot = await getDocs(userDocQuery);
+        
+        if (!userSnapshot.empty) {
+          return userSnapshot.docs[0].id;
+        } else {
+          // Create new user profile
+          const docRef = await addDoc(collection(db, "userProfiles"), {
+            userId: userId,
+            userEmail: auth.currentUser.email,
+            bookmarks: [],
+            createdAt: new Date()
+          });
+          return docRef.id;
+        }
+      } catch (error) {
+        console.error("Error getting/creating user profile:", error);
+        throw error;
+      }
+    }
+
+    // Toggle bookmark for a recipe
+    async function toggleBookmark(recipeId) {
+      const user = auth.currentUser;
+      if (!user) {
+        alert("Please log in to bookmark recipes");
+        return;
+      }
+
+      try {
+        const userProfileId = await getUserProfileId(user.uid);
+        const userDocRef = doc(db, "userProfiles", userProfileId);
+        
+        const isBookmarked = userBookmarks.includes(recipeId);
+
+        if (isBookmarked) {
+          await updateDoc(userDocRef, {
+            bookmarks: arrayRemove(recipeId)
+          });
+          userBookmarks = userBookmarks.filter(id => id !== recipeId);
+        } else {
+          await updateDoc(userDocRef, {
+            bookmarks: arrayUnion(recipeId)
+          });
+          userBookmarks.push(recipeId);
+        }
+
+        renderRecipes(); // Re-render to update bookmark buttons
+      } catch (error) {
+        console.error("Error toggling bookmark:", error);
+        alert("Failed to update bookmark: " + error.message);
+      }
+    }
+
+    // Toggle upvote for a recipe
+    async function toggleUpvote(recipeId) {
+      const user = auth.currentUser;
+      if (!user) {
+        alert("Please log in to upvote recipes");
+        return;
+      }
+
+      try {
+        const recipeRef = doc(db, "recipes", recipeId);
+        const recipe = recipes.find(r => r.id === recipeId);
+        
+        if (!recipe) return;
+
+        const userUpvotes = recipe.upvotedBy || [];
+        const hasUpvoted = userUpvotes.includes(user.uid);
+
+        // Check if recipe is public before allowing upvote
+        if (!recipe.isPublic) {
+          alert("You can only upvote public recipes");
+          return;
+        }
+
+        if (hasUpvoted) {
+          // Remove upvote
+          await updateDoc(recipeRef, {
+            upvotes: increment(-1),
+            upvotedBy: arrayRemove(user.uid)
+          });
+          recipe.upvotes = Math.max(0, (recipe.upvotes || 1) - 1);
+          recipe.upvotedBy = userUpvotes.filter(uid => uid !== user.uid);
+        } else {
+          // Add upvote
+          await updateDoc(recipeRef, {
+            upvotes: increment(1),
+            upvotedBy: arrayUnion(user.uid)
+          });
+          recipe.upvotes = (recipe.upvotes || 0) + 1;
+          recipe.upvotedBy = [...userUpvotes, user.uid];
+        }
+
+        renderRecipes(); // Re-render to update upvote buttons and counts
+      } catch (error) {
+        console.error("Error toggling upvote:", error);
+        alert("Failed to update upvote: " + error.message);
+      }
     }
 
     // Initialize multi-selects and rich text editors
@@ -285,6 +441,7 @@ document.addEventListener("DOMContentLoaded", () => {
         // User is logged in
         addRecipeSection.style.display = "block";
         viewToggle.style.display = "inline-block";
+        bookmarksToggle.style.display = "inline-block";
         logoutBtn.style.display = "inline-block";
         loginBtn.style.display = "none";
         signupBtn.style.display = "none";
@@ -294,12 +451,13 @@ document.addEventListener("DOMContentLoaded", () => {
         
         // Reset to my recipes view and load user's recipes when they log in
         currentView = "my-recipes";
-        updateViewToggleButton();
-        loadRecipes();
+        updateViewButtons();
+        loadUserBookmarks().then(() => loadRecipes());
     } else {
         // User is logged out - show shared recipes by default
         addRecipeSection.style.display = "none";
-        viewToggle.style.display = "inline-block"; // Still show toggle for logged-out users
+        viewToggle.style.display = "none"; // FIXED: Hide "View My Recipes" button for logged-out users
+        bookmarksToggle.style.display = "none"; // Hide bookmarks button for logged-out users
         logoutBtn.style.display = "none";
         loginBtn.style.display = "inline-block";
         signupBtn.style.display = "inline-block";
@@ -311,7 +469,8 @@ document.addEventListener("DOMContentLoaded", () => {
         searchInput.value = "";
         filterCategoryMultiSelect.clear();
         currentView = "shared-recipes"; // Default to shared recipes for logged-out users
-        updateViewToggleButton();
+        userBookmarks = []; // Clear bookmarks
+        updateViewButtons();
         loadRecipes(); // Load shared recipes even when logged out
     }
     });
@@ -320,6 +479,16 @@ document.addEventListener("DOMContentLoaded", () => {
     const recipesContainer = document.getElementById("recipes");
     const searchInput = document.getElementById("search-input");
     const viewToggle = document.getElementById("view-toggle");
+    const bookmarksToggle = document.getElementById("bookmarks-toggle");
+    const sortSelect = document.getElementById("sort-select");
+
+    // Sort functionality
+    if (sortSelect) {
+      sortSelect.addEventListener("change", (e) => {
+        currentSort = e.target.value;
+        filterRecipes(); // This will also trigger sorting and re-rendering
+      });
+    }
 
     // Modal elements
     const editModal = document.getElementById("edit-modal");
@@ -329,89 +498,144 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Toggle between My Recipes and Shared Recipes
     function toggleView() {
-      const user = auth.currentUser;
-      
       if (currentView === "my-recipes") {
         currentView = "shared-recipes";
       } else {
-        // Only allow switching to "my-recipes" if user is logged in
-        if (user) {
-          currentView = "my-recipes";
-        } else {
-          alert("Please log in to view your personal recipes.");
-          return;
-        }
+        currentView = "my-recipes";
       }
       
-      updateViewToggleButton();
+      updateViewButtons();
       loadRecipes();
     }
 
-    function updateViewToggleButton() {
+    // Toggle to Bookmarked Recipes
+    function toggleBookmarks() {
+      const user = auth.currentUser;
+      if (!user) {
+        alert("Please log in to view bookmarked recipes.");
+        return;
+      }
+      
+      if (currentView === "bookmarked-recipes") {
+        currentView = "my-recipes";
+      } else {
+        currentView = "bookmarked-recipes";
+      }
+      
+      updateViewButtons();
+      loadRecipes();
+    }
+
+    function updateViewButtons() {
       const user = auth.currentUser;
       
+      // Update main view toggle button
       if (currentView === "my-recipes") {
-        viewToggle.textContent = "View Shared Recipes";
+        viewToggle.textContent = "View Community Recipes";
         viewToggle.className = "view-toggle-btn";
-      } else {
-        if (user) {
-          viewToggle.textContent = "View My Recipes";
-          viewToggle.className = "view-toggle-btn shared-view";
+      } else if (currentView === "shared-recipes") {
+        viewToggle.textContent = "View My Recipes";
+        viewToggle.className = "view-toggle-btn shared-view";
+      }
+      
+      // Update bookmarks button
+      if (user) {
+        if (currentView === "bookmarked-recipes") {
+          bookmarksToggle.textContent = "Exit Bookmarks";
+          bookmarksToggle.className = "bookmarks-toggle-btn active";
+          viewToggle.style.display = "none";
         } else {
-            viewToggle.style.display = "none";
+          bookmarksToggle.textContent = "View Bookmarked Recipes";
+          bookmarksToggle.className = "bookmarks-toggle-btn";
+          viewToggle.style.display = "inline";
         }
       }
     }
 
     // Add event listener for view toggle
     viewToggle.addEventListener("click", toggleView);
+    bookmarksToggle.addEventListener("click", toggleBookmarks);
 
     // Add event listeners for search and filter
     searchInput.addEventListener("input", filterRecipes);
   
-    // Load recipes from Firestore
-    async function loadRecipes() {
-      try {
-        let q;
-        if (currentView === "my-recipes") {
-          // Load user's own recipes (requires login)
-          const user = auth.currentUser;
-          if (!user) {
-            recipes = [];
-            filteredRecipes = [];
-            renderRecipes();
-            return;
-          }
-          q = query(collection(db, "recipes"), where("userId", "==", user.uid));
-        } else {
-          // Load shared recipes (available to everyone, including logged-out users)
-          q = query(collection(db, "recipes"), where("isPublic", "==", true));
+// Load recipes from Firestore
+async function loadRecipes() {
+    try {
+      let q;
+      if (currentView === "my-recipes") {
+        // Load user's own recipes (requires login)
+        const user = auth.currentUser;
+        if (!user) {
+          recipes = [];
+          filteredRecipes = [];
+          renderRecipes();
+          return;
         }
-
-        const querySnapshot = await getDocs(q);
+        q = query(collection(db, "recipes"), where("userId", "==", user.uid));
+      } else if (currentView === "bookmarked-recipes") {
+        // Load bookmarked recipes (requires login)
+        const user = auth.currentUser;
+        if (!user || userBookmarks.length === 0) {
+          recipes = [];
+          filteredRecipes = [];
+          renderRecipes();
+          return;
+        }
         
+        // For bookmarked recipes, we need to load each recipe individually
+        // because we can't efficiently query for multiple specific document IDs in Firestore
         recipes = [];
-        querySnapshot.forEach((doc) => {
-          recipes.push({
-            id: doc.id,
-            ...doc.data()
-          });
-        });
-
-        // Sort recipes by creation date (newest first)
-        recipes.sort((a, b) => {
-          const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt || 0);
-          const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt || 0);
-          return dateB - dateA;
-        });
+        
+        // Load each bookmarked recipe
+        for (const recipeId of userBookmarks) {
+          try {
+            const recipeDoc = await getDocs(query(collection(db, "recipes"), where("__name__", "==", recipeId)));
+            if (!recipeDoc.empty) {
+              const docData = recipeDoc.docs[0];
+              const recipeData = {
+                id: docData.id,
+                ...docData.data()
+              };
+              
+              // Include the recipe if:
+              // 1. It's public, OR
+              // 2. It's the user's own recipe (even if private)
+              if (recipeData.isPublic || recipeData.userId === user.uid) {
+                recipes.push(recipeData);
+              }
+            }
+          } catch (error) {
+            console.error(`Error loading bookmarked recipe ${recipeId}:`, error);
+          }
+        }
         
         // Apply current filters after loading
         filterRecipes();
-      } catch (error) {
-        console.error("Error loading recipes:", error);
-        alert("Failed to load recipes: " + error.message);
+        return;
+      } else {
+        // Load shared recipes (available to everyone, including logged-out users)
+        q = query(collection(db, "recipes"), where("isPublic", "==", true));
       }
+  
+      const querySnapshot = await getDocs(q);
+      
+      recipes = [];
+      querySnapshot.forEach((doc) => {
+        const recipeData = {
+          id: doc.id,
+          ...doc.data()
+        };
+        recipes.push(recipeData);
+      });
+  
+      // Apply current filters after loading
+      filterRecipes();
+    } catch (error) {
+      console.error("Error loading recipes:", error);
+      alert("Failed to load recipes: " + error.message);
     }
+  }
 
     // Upload image to Firebase Storage
     async function uploadImage(file, recipeId) {
@@ -452,7 +676,9 @@ document.addEventListener("DOMContentLoaded", () => {
           userEmail: user.email,
           userName: user.displayName || user.email.split('@')[0],
           isPublic: recipeData.isPublic || false,
-          imageUrl: null // Will be updated if image is uploaded
+          imageUrl: null, // Will be updated if image is uploaded
+          upvotes: 0, // Initialize upvotes to 0
+          upvotedBy: [] // Initialize empty array of users who upvoted
         });
 
         // If there's an image, upload it and update the recipe
@@ -588,6 +814,8 @@ document.addEventListener("DOMContentLoaded", () => {
           let message;
           if (currentView === "my-recipes") {
             message = "No recipes yet. Create your first recipe!";
+          } else if (currentView === "bookmarked-recipes") {
+            message = "No bookmarked recipes yet. Bookmark some recipes to see them here!";
           } else {
             message = user ? 
               "No shared recipes found. Be the first to share a recipe!" : 
@@ -618,6 +846,8 @@ document.addEventListener("DOMContentLoaded", () => {
           "👥 Viewing shared recipes from the community" : 
           "👥 Viewing shared recipes from the community (Log in to create your own!)";
         headerInfo.innerHTML = `<p class="view-info"><em>${communityText}</em></p>`;
+      } else if (currentView === "bookmarked-recipes") {
+        headerInfo.innerHTML = `<p class="view-info"><em>📖 Viewing your bookmarked recipes</em></p>`;
       }
       
       if (recipesToRender.length !== recipes.length) {
@@ -637,6 +867,8 @@ document.addEventListener("DOMContentLoaded", () => {
         
         // Check if current user owns this recipe
         const isOwner = user && recipe.userId === user.uid;
+        const isBookmarked = user && userBookmarks.includes(recipe.id);
+        const hasUpvoted = user && recipe.upvotedBy && recipe.upvotedBy.includes(user.uid);
 
         // Format the createdAt date
         let dateString = "Unknown date";
@@ -659,14 +891,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
         // Create author info for shared recipes or when not logged in
         let authorInfo = "";
-        if (currentView === "shared-recipes") {
+        if (currentView === "shared-recipes" || currentView === "bookmarked-recipes") {
           authorInfo = `<p class="recipe-author"><strong>By:</strong> ${recipe.userName || 'Anonymous'}</p>`;
         }
 
         // Create privacy toggle button - ONLY for logged-in users viewing their own recipes
         let privacyButton = "";
         if (currentView === "my-recipes" && isOwner && user) {
-          const privacyAction = recipe.isPublic ? "Make Private" : "Make Public";
+          const privacyAction = recipe.isPublic ? "🔒 Make Private" : "🌍 Make Public";
           privacyButton = `<button class="privacy-btn ${recipe.isPublic ? 'public' : 'private'}" data-id="${recipe.id}" data-public="${recipe.isPublic}">${privacyAction}</button>`;
         }
 
@@ -676,10 +908,25 @@ document.addEventListener("DOMContentLoaded", () => {
           editButton = `<button class="edit-btn" data-id="${recipe.id}">Edit</button>`;
         }
 
+        // Bookmark button - for ALL logged-in users on ALL recipes (including their own)
+        let bookmarkButton = "";
+        if (user) {
+          const bookmarkAction = isBookmarked ? "Bookmarked" : "Bookmark";
+          const bookmarkClass = isBookmarked ? "bookmarked" : "";
+          bookmarkButton = `<button class="bookmark-btn ${bookmarkClass}" data-id="${recipe.id}">${isBookmarked ? '📖' : '📝'} ${bookmarkAction}</button>`;
+        }
+
         // Delete button - ONLY for logged-in users viewing their own recipes
         let deleteButton = "";
         if (currentView === "my-recipes" && isOwner && user) {
-          deleteButton = `<button class="delete-btn" data-id="${recipe.id}">Delete</button>`;
+          deleteButton = `<div class="delete-btn-wrapper"><button class="delete-btn" data-id="${recipe.id}">Delete</button></div>`;
+        }
+
+        // Upvote button - for ALL logged-in users on ALL public recipes (including their own)
+        let upvoteButton = "";
+        if (user && recipe.isPublic) {
+          const upvoteClass = hasUpvoted ? "upvoted" : "";
+          upvoteButton = `<button class="upvote-btn ${upvoteClass}" data-id="${recipe.id}">${hasUpvoted ? '👍 Upvoted' : '👍 Upvote'}</button>`;
         }
 
         // Privacy status - only show in "my-recipes" view for owned recipes
@@ -688,7 +935,13 @@ document.addEventListener("DOMContentLoaded", () => {
           privacyStatus = `<p class="privacy-status"><strong>Status:</strong> ${recipe.isPublic ? "Public 🌍" : "Private 🔒"}</p>`;
         }
 
-        // Recipe image - show if available (FULL SIZE)
+        // Upvote count display in top right corner for public recipes
+        let upvoteCorner = "";
+        if (recipe.isPublic) {
+          upvoteCorner = `<div class="recipe-upvote-corner">👍 ${recipe.upvotes || 0}</div>`;
+        }
+
+        // Recipe image - show if available
         let recipeImage = "";
         if (recipe.imageUrl) {
           recipeImage = `<img src="${recipe.imageUrl}" alt="${recipe.title}" class="recipe-image" onclick="window.open('${recipe.imageUrl}', '_blank')" />`;
@@ -700,6 +953,7 @@ document.addEventListener("DOMContentLoaded", () => {
           : 'N/A';
   
         card.innerHTML = `
+          ${upvoteCorner}
           <h3>${title}</h3>
           ${authorInfo}
           <p class="recipe-created-date"><strong>Created:</strong> ${dateString}</p>
@@ -715,6 +969,8 @@ document.addEventListener("DOMContentLoaded", () => {
           <div class="recipe-actions">
             ${editButton}
             ${privacyButton}
+            ${bookmarkButton}
+            ${upvoteButton}
             ${deleteButton}
           </div>
         `;
@@ -748,6 +1004,20 @@ document.addEventListener("DOMContentLoaded", () => {
             if (recipe) {
               openEditModal(recipe);
             }
+          });
+        });
+
+        document.querySelectorAll(".bookmark-btn").forEach(btn => {
+          btn.addEventListener("click", e => {
+            const recipeId = e.target.dataset.id;
+            toggleBookmark(recipeId);
+          });
+        });
+
+        document.querySelectorAll(".upvote-btn").forEach(btn => {
+          btn.addEventListener("click", e => {
+            const recipeId = e.target.dataset.id;
+            toggleUpvote(recipeId);
           });
         });
       }
