@@ -553,6 +553,7 @@ header {
     display: flex;
     flex-wrap: wrap;
     gap: 4px;
+    font-size: 14px;
   }
   
   .multiselect-dropdown {
@@ -636,6 +637,8 @@ header {
     background: white;
     outline: none;
     overflow-y: auto;
+    font-family: Arial, sans-serif !important;
+    font-size: 14px !important;
   }
   
   .rich-text-editor:focus {
@@ -693,6 +696,13 @@ header {
   /* Recipe Content Rendering */
   .recipe-content {
     line-height: 1.6;
+    font-family: Arial, sans-serif !important;
+    font-size: 14px !important;
+  }
+
+  .recipe-content * {
+    font-family: Arial, sans-serif !important;
+    font-size: 14px !important;
   }
   
   .recipe-content ul, 
